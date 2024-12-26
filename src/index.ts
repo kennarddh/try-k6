@@ -1,5 +1,4 @@
 import { PrismaClient } from '@prisma/client'
-import http from 'http'
 
 const prisma = new PrismaClient()
 
@@ -17,39 +16,40 @@ const productID = (
 	})
 ).id
 
-const server = http.createServer(async (req, res) => {
-	const products = await prisma.$queryRaw<{ name: string; stock: number }[]>`
+// const productID = 28
+
+console.log(`Product ID: ${productID}`)
+
+Bun.serve({
+	port: 8000,
+	development: false,
+	reusePort: true,
+	async fetch() {
+		const products = await prisma.$queryRaw<{ name: string; stock: number }[]>`
 			UPDATE "Products"
 			SET stock = stock - 1
 			WHERE id = ${productID} AND stock >= 1
 			RETURNING name, stock;
 		`
 
-	if (products.length === 0) {
-		res.writeHead(400, { 'Content-Type': 'application/json' })
-		res.end(
+		if (products.length === 0) {
+			return new Response(
+				JSON.stringify({
+					data: `Product sold out!`,
+				}),
+				{ status: 400, headers: { 'Content-Type': 'application/json' } },
+			)
+		}
+
+		const product = products[0]
+
+		return new Response(
 			JSON.stringify({
-				data: `Product sold out!`,
+				data: `Bought product '${product!.name}' current stock is ${product!.stock}`,
 			}),
+			{ status: 200, headers: { 'Content-Type': 'application/json' } },
 		)
-
-		return
-	}
-
-	const product = products[0]
-
-	res.writeHead(200, { 'Content-Type': 'application/json' })
-	res.end(
-		JSON.stringify({
-			data: `Bought product '${product!.name}' current stock is ${product!.stock}`,
-		}),
-	)
+	},
 })
 
-server.on('clientError', (err, socket) => {
-	socket.end('HTTP/1.1 400 Bad Request\r\n\r\n')
-})
-
-server.listen(8000, () => {
-	console.log('Server is running on port 8000')
-})
+console.log('Server is running on port 8000')
