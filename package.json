@@ -10,6 +10,7 @@
   "license": "MIT",
   "description": "",
   "devDependencies": {
+    "@types/k6": "^0.54.2",
     "@types/node": "^22.10.2",
     "prettier": "^3.4.2",
     "prisma": "^6.1.0",
