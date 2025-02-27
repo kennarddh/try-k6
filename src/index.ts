@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client'
-
+import http from 'http'
 const prisma = new PrismaClient()
 
 await prisma.$connect()
@@ -20,36 +20,39 @@ const productID = (
 
 console.log(`Product ID: ${productID}`)
 
-Bun.serve({
-	port: 8000,
-	development: false,
-	reusePort: true,
-	async fetch() {
-		const products = await prisma.$queryRaw<{ name: string; stock: number }[]>`
-			UPDATE "Products"
-			SET stock = stock - 1
-			WHERE id = ${productID} AND stock >= 1
-			RETURNING name, stock;
-		`
+http.createServer(async function (_, res) {
+	const product = await prisma.products.update({
+		where: {
+			id: productID,
+			stock: {
+				gt: 0,
+			},
+		},
+		data: {
+			stock: {
+				decrement: 1,
+			},
+		},
+		select: { stock: true },
+	})
 
-		if (products.length === 0) {
-			return new Response(
-				JSON.stringify({
-					data: `Product sold out!`,
-				}),
-				{ status: 400, headers: { 'Content-Type': 'application/json' } },
-			)
-		}
-
-		const product = products[0]
-
-		return new Response(
+	if (product.stock === 0) {
+		res.writeHead(400, { 'Content-Type': 'application/json' })
+		res.end(
 			JSON.stringify({
-				data: `Bought product '${product!.name}' current stock is ${product!.stock}`,
+				data: `Product sold out!`,
 			}),
-			{ status: 200, headers: { 'Content-Type': 'application/json' } },
 		)
-	},
-})
+
+		return
+	}
+
+	res.writeHead(200, { 'Content-Type': 'application/json' })
+	res.end(
+		JSON.stringify({
+			data: `Bought product ${product!.stock}`,
+		}),
+	)
+}).listen(8000)
 
 console.log('Server is running on port 8000')
